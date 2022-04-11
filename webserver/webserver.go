@@ -2,7 +2,9 @@ package webserver
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -16,52 +18,72 @@ const (
 )
 
 type Server struct {
-	http.ServeMux
+	mux        *http.ServeMux
 	fileSystem http.FileSystem
 	routes     routesByPattern
+	host       string
+	port       string
 }
 
 type Handler func(req *Request, res *Response)
 
-func NewServer() *Server {
-	router := new(Server)
-	router.routes = make(routesByPattern)
-	return router
+func NewServer(addr string) *Server {
+	server := &Server{mux: http.NewServeMux()}
+
+	server.setAddr(addr)
+	server.routes = make(routesByPattern)
+	return server
 }
 
-func NewServerWithFS(fileSystem http.FileSystem) *Server {
-	router := NewServer()
+func NewServerWithFS(addr string, fileSystem http.FileSystem) *Server {
+	router := NewServer(addr)
 	router.fileSystem = fileSystem
 	return router
 }
 
 func ListenAndServe(addr string, handler Handler) error {
-	return http.ListenAndServe(addr, NewServer().All("/**", handler))
+	return NewServer(addr).All("/**", handler).ListenAndServe()
 }
 
 func ListenAndServeTLS(addr string, certFile string, keyFile string, handler Handler) error {
-	return http.ListenAndServeTLS(addr, certFile, keyFile, NewServer().All("/**", handler))
+	return NewServer(addr).All("/**", handler).ListenAndServeTLS(certFile, keyFile)
 }
 
-func (this *Server) ListenAndServe(addr string) error {
-	return http.ListenAndServe(addr, this)
+func Serve(l net.Listener, handler Handler) error {
+	return NewServer("").All("/**", handler).Serve(l)
 }
 
-func (this *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
-	return http.ListenAndServeTLS(addr, certFile, keyFile, this)
+func ServeTLS(l net.Listener, handler Handler, certFile string, keyFile string) error {
+	return NewServer("").All("/**", handler).ServeTLS(l, certFile, keyFile)
+}
+
+func (this *Server) ListenAndServe() error {
+	return http.ListenAndServe(this.getAddr(), this.mux)
+}
+
+func (this *Server) ListenAndServeTLS(certFile, keyFile string) error {
+	return http.ListenAndServeTLS(this.getAddr(), certFile, keyFile, this.mux)
+}
+
+func (this *Server) Serve(l net.Listener) error {
+	return http.Serve(l, this.mux)
+}
+
+func (this *Server) ServeTLS(l net.Listener, certFile string, keyFile string) error {
+	return http.ServeTLS(l, this.mux, certFile, keyFile)
 }
 
 // ================== HANDLERS ================== //
 
-func (this *Server) HandleAll(pattern string, webserverHandler func(req *Request, res *Response)) *Server {
+func (this *Server) HandleAll(pattern string, webserverHandler Handler) *Server {
 	return this.MultiHandle(nil, pattern, webserverHandler)
 }
 
-func (this *Server) Handle(method string, pattern string, handler func(req *Request, res *Response)) *Server {
+func (this *Server) Handle(method string, pattern string, handler Handler) *Server {
 	return this.MultiHandle([]string{method}, pattern, handler)
 }
 
-func (this *Server) MultiHandle(methods []string, pattern string, handler func(req *Request, res *Response)) *Server {
+func (this *Server) MultiHandle(methods []string, pattern string, handler Handler) *Server {
 	pattern, isNewRootPattern := this.addRoute(methods, pattern, handler)
 
 	if !isNewRootPattern {
@@ -74,7 +96,7 @@ func (this *Server) MultiHandle(methods []string, pattern string, handler func(r
 		handlePattern = "/" + handlePattern
 	}
 
-	this.HandleFunc(handlePattern, func(rw http.ResponseWriter, req *http.Request) {
+	this.mux.HandleFunc(this.host+handlePattern, func(rw http.ResponseWriter, req *http.Request) {
 
 		request := newRequest(req)
 		response := newResponse(rw, this.fileSystem, request)
@@ -102,7 +124,7 @@ func (this *Server) FileServerStrippingPrefix(pattern string, stripPrefix string
 		handler = http.StripPrefix(stripPrefix, handler)
 	}
 
-	this.ServeMux.Handle(pattern, handler)
+	this.mux.Handle(this.host+pattern, handler)
 }
 
 func (this *Server) FileServer(pattern string) {
@@ -111,23 +133,23 @@ func (this *Server) FileServer(pattern string) {
 
 // ============== SHORCUT HANDLERS =============== //
 
-func (this *Server) All(pattern string, webserverHandler func(req *Request, res *Response)) *Server {
+func (this *Server) All(pattern string, webserverHandler Handler) *Server {
 	return this.HandleAll(pattern, webserverHandler)
 }
 
-func (this *Server) Get(pattern string, webserverHandler func(req *Request, res *Response)) *Server {
+func (this *Server) Get(pattern string, webserverHandler Handler) *Server {
 	return this.Handle(http.MethodGet, pattern, webserverHandler)
 }
 
-func (this *Server) Post(pattern string, webserverHandler func(req *Request, res *Response)) *Server {
+func (this *Server) Post(pattern string, webserverHandler Handler) *Server {
 	return this.Handle(http.MethodPost, pattern, webserverHandler)
 }
 
-func (this *Server) Put(pattern string, webserverHandler func(req *Request, res *Response)) *Server {
+func (this *Server) Put(pattern string, webserverHandler Handler) *Server {
 	return this.Handle(http.MethodPut, pattern, webserverHandler)
 }
 
-func (this *Server) Delete(pattern string, webserverHandler func(req *Request, res *Response)) *Server {
+func (this *Server) Delete(pattern string, webserverHandler Handler) *Server {
 	return this.Handle(http.MethodDelete, pattern, webserverHandler)
 }
 
@@ -152,6 +174,20 @@ func (this *Server) WriteJSON(pattern string, filePath string) *Server {
 func (this *Server) addRoute(methods []string, pattern string, handler Handler) (rootPattern string, isNewRootPattern bool) {
 	route := this.routes.Add(methods, pattern, handler)
 	return route.staticPart, len(this.routes[route.staticPart]) == 1
+}
+
+func (this *Server) getAddr() string {
+	return this.host + ":" + this.port
+}
+
+func (this *Server) setAddr(addr string) {
+	data := strings.Split(addr, ":")
+
+	this.host = data[0]
+
+	if len(data) > 1 {
+		this.port = data[1]
+	}
 }
 
 func catchAllServerErrors(req *Request, res *Response) {

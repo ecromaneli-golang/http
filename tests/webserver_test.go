@@ -135,6 +135,30 @@ func TestShouldParseParams(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
+func TestShouldRefuseWrongDomain(t *testing.T) {
+	// When
+	test := WebServerTest{
+		ServerHost:    "localhostwrong",
+		ServerMethod:  http.MethodPost,
+		ServerPattern: "/{pathParam}",
+	}
+
+	assert.ErrorContains(t, test.Do(), "connection refused")
+}
+
+/*
+func Test(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("localhost", func(w http.ResponseWriter, r *http.Request) {
+		t.FailNow()
+	})
+	go http.ListenAndServe("localhost:8080", mux)
+
+	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
+	http.DefaultClient.Do(req)
+}
+*/
+
 func panicIfNotNil(err error) {
 	if err != nil {
 		panic(err)
