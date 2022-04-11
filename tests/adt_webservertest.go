@@ -13,6 +13,7 @@ import (
 var port = 8000
 
 type WebServerTest struct {
+	ServerHost    string
 	ServerPort    int
 	ServerMethod  string
 	ServerPattern string
@@ -21,6 +22,8 @@ type WebServerTest struct {
 	RequestMethod      string
 	RequestContentType string
 	RequestPath        string
+	RequestHost        string
+	RequestPort        int
 	RequestBody        []byte
 }
 
@@ -42,6 +45,14 @@ func (this *WebServerTest) SetDefaults() {
 		this.ServerHandler = emptyHandler
 	}
 
+	if this.RequestHost == "" {
+		this.RequestHost = "localhost"
+	}
+
+	if this.RequestPort == 0 {
+		this.RequestPort = this.ServerPort
+	}
+
 	if this.RequestMethod == "" {
 		this.RequestMethod = http.MethodGet
 	}
@@ -60,7 +71,11 @@ func (this WebServerTest) DoAndGetDetails() (req *http.Request, res *http.Respon
 
 	// Given
 	this.SetDefaults()
-	go webserver.NewServer().Handle(this.ServerMethod, this.ServerPattern, this.ServerHandler).ListenAndServe(":" + strconv.Itoa(this.ServerPort))
+
+	server := webserver.NewServer(this.ServerHost + ":" + strconv.Itoa(this.ServerPort))
+	server.Handle(this.ServerMethod, this.ServerPattern, this.ServerHandler)
+
+	go server.ListenAndServe()
 
 	// When
 	var body io.Reader
@@ -73,7 +88,7 @@ func (this WebServerTest) DoAndGetDetails() (req *http.Request, res *http.Respon
 
 	// res, err = http.PostForm("http://localhost:"+strconv.Itoa(this.ServerPort)+this.RequestPath, param)
 
-	req, err = http.NewRequest(this.RequestMethod, "http://localhost:"+strconv.Itoa(this.ServerPort)+this.RequestPath, body)
+	req, err = http.NewRequest(this.RequestMethod, "http://"+this.RequestHost+":"+strconv.Itoa(this.RequestPort)+this.RequestPath, body)
 
 	if err != nil {
 		return req, nil, err
