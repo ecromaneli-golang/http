@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	dateFormat = "2006-01-02 15:04:05.000 Z07:00"
+
 	ContentTypeHeader = "Content-Type"
 
 	ContentTypeFormUrlEncoded = "application/x-www-form-urlencoded"
@@ -209,5 +211,5 @@ func catchAllServerErrors(req *Request, res *Response) {
 		res.Status(customErr.StatusCode).WriteText(customErr.Message)
 	}
 
-	fmt.Println("[WebServer]", time.Now().Format(time.RFC3339), "- ERROR", customErr.Log)
+	fmt.Println(time.Now().Format(dateFormat), "- ERROR webserver:", customErr.Log)
 }
