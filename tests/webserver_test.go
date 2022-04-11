@@ -135,15 +135,26 @@ func TestShouldParseParams(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldRefuseWrongDomain(t *testing.T) {
+func TestShouldRefuseWrongHost(t *testing.T) {
 	// When
-	test := WebServerTest{
-		ServerHost:    "localhostwrong",
-		ServerMethod:  http.MethodPost,
-		ServerPattern: "/{pathParam}",
+	test1 := WebServerTest{
+		ServerHost:  "localhostwrong",
+		RequestHost: "localhost",
 	}
 
-	assert.ErrorContains(t, test.Do(), "connection refused")
+	test2 := WebServerTest{
+		ServerHost:  "localhost",
+		RequestHost: "localhostwrong",
+	}
+
+	test3 := WebServerTest{
+		ServerHost:  "localhost",
+		RequestHost: "localhost",
+	}
+
+	assert.NotNil(t, test1.Do())
+	assert.NotNil(t, test2.Do())
+	panicIfNotNil(test3.Do())
 }
 
 /*
