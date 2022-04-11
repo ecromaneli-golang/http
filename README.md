@@ -4,7 +4,7 @@
 ```go
     import "github.com/ecromaneli-golang/http/webserver"
     
-    server := webserver.NewServer()
+    server := webserver.NewServer(":80")
 
     server.Get("/example/{id}/**", func(req *webserver.Request, res *webserver.Response) {
         
@@ -14,5 +14,5 @@
         res.Status(200).WriteText("example")
     })
 
-    err := server.ListenAndServe(":80")
+    err := server.ListenAndServe()
 ```
