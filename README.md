@@ -36,7 +36,7 @@ server := webserver.NewServer()
 
 How to route? The Server can be used to route directly like this:
 ```golang
-server.MultiHandle(method, pattern, handler)
+server.Handle(method, pattern, handler)
 server.MultiHandle([]methods, pattern, handler)
 
 // For any method
@@ -153,6 +153,8 @@ I will document this better later.
     .FlushEvent(*webserver.Event) // yes! SSE just don't die.
     .Render("path/to/file")
 ```
+
+You can alsos access the original writer by using `res.RawWriter` and the file server (if passed) using `res.RawFS`.
 
 # License
 
