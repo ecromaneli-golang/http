@@ -95,6 +95,34 @@ func TestShouldNotNeedFinalSlash7(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
+func TestShouldNotNeedFinalSlash8(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "localhost/static1/{o1?}/{o2?}/", RequestPath: "/static1"}
+
+	// Then
+	panicIfNotNil(test.Do())
+}
+
+func TestShouldNotAcceptWrongDomain(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "wronghost/static1/{o1?}/{o2?}/", RequestPath: "/static1"}
+	test2 := WebServerTest{ServerPattern: "localhost/static1/{o1?}/{o2?}/", RequestHost: "127.0.0.1", RequestPath: "/static1"}
+
+	// Then
+	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusNotFound))
+	assert.ErrorContains(t, test2.Do(), http.StatusText(http.StatusNotFound))
+}
+
+func TestShouldAcceptRightDomain(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "localhost/static1/{o1?}/{o2?}/", RequestPath: "/static1"}
+	test2 := WebServerTest{ServerPattern: "127.0.0.1/static1/{o1?}/{o2?}/", RequestHost: "127.0.0.1", RequestPath: "/static1"}
+
+	// Then
+	panicIfNotNil(test.Do())
+	panicIfNotNil(test2.Do())
+}
+
 func TestShouldReturnNotFound(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/", RequestPath: "/static1"}
@@ -115,7 +143,7 @@ func TestShouldParseParams(t *testing.T) {
 	// When
 	test := WebServerTest{
 		ServerMethod:  http.MethodPost,
-		ServerPattern: "/{pathParam}",
+		ServerPattern: "{domain}/{pathParam}",
 
 		RequestMethod:      http.MethodPost,
 		RequestContentType: webserver.ContentTypeFormUrlEncoded,
@@ -125,6 +153,7 @@ func TestShouldParseParams(t *testing.T) {
 
 	// Then
 	test.ServerHandler = func(req *webserver.Request, res *webserver.Response) {
+		assert.Equal(t, "localhost", req.Param("domain"))
 		assert.Equal(t, "pathValue", req.Param("pathParam"))
 		assert.Equal(t, "bodyValue", req.Param("bodyParam"))
 		assert.Equal(t, "value1", req.Param("param1"))
@@ -134,41 +163,6 @@ func TestShouldParseParams(t *testing.T) {
 
 	panicIfNotNil(test.Do())
 }
-
-func TestShouldRefuseWrongHost(t *testing.T) {
-	// When
-	test1 := WebServerTest{
-		ServerHost:  "localhostwrong",
-		RequestHost: "localhost",
-	}
-
-	test2 := WebServerTest{
-		ServerHost:  "localhost",
-		RequestHost: "localhostwrong",
-	}
-
-	test3 := WebServerTest{
-		ServerHost:  "localhost",
-		RequestHost: "localhost",
-	}
-
-	assert.NotNil(t, test1.Do())
-	assert.NotNil(t, test2.Do())
-	panicIfNotNil(test3.Do())
-}
-
-/*
-func Test(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("localhost", func(w http.ResponseWriter, r *http.Request) {
-		t.FailNow()
-	})
-	go http.ListenAndServe("localhost:8080", mux)
-
-	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
-	http.DefaultClient.Do(req)
-}
-*/
 
 func panicIfNotNil(err error) {
 	if err != nil {

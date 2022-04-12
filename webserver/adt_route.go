@@ -3,27 +3,30 @@ package webserver
 import (
 	"bytes"
 	"net/http"
+	"strings"
 )
 
 type routesByPattern map[string][]route
 
 type route struct {
-	staticPart  string
-	dynamicPart [][]byte
-	methods     []string
-	handler     Handler
+	dynamicHost    [][]byte
+	staticPattern  string
+	dynamicPattern [][]byte
+	methods        []string
+	handler        Handler
 }
 
 var slashSlice = []byte{'/'}
+var dotSlice = []byte{'.'}
 
 const dynamicSymbols = "{*"
 
-func (this *routesByPattern) getRoute(method, pattern, currentPath string) (currentRoute *route, params map[string]string, status int) {
+func (this *routesByPattern) getRoute(method, pattern, hostPort, path string) (currentRoute *route, params map[string]string) {
 	routes := (*this)[pattern]
 	errorStatus := http.StatusNotFound
 
 	for _, route := range routes {
-		params, statusCode := route.matchPathAndGetParam(currentPath)
+		params, statusCode := route.matchURLAndGetParam(hostPort, path)
 
 		if statusCode != 0 {
 			if errorStatus == http.StatusNotFound {
@@ -37,15 +40,18 @@ func (this *routesByPattern) getRoute(method, pattern, currentPath string) (curr
 			continue
 		}
 
-		return &route, params, 0
+		return &route, params
 	}
 
-	return nil, nil, errorStatus
+	NewHTTPError(errorStatus, nil).Panic()
+
+	// Should not reach here
+	return nil, nil
 }
 
 func (this *routesByPattern) Add(methods []string, pattern string, handler Handler) *route {
 	route := newRoute(methods, pattern, handler)
-	(*this)[route.staticPart] = append((*this)[route.staticPart], *route)
+	(*this)[route.staticPattern] = append((*this)[route.staticPattern], *route)
 	return route
 }
 
@@ -61,43 +67,72 @@ func newRoute(methods []string, pattern string, handler Handler) *route {
 
 func (this *route) extractAndSetPattern(pattern []byte) {
 
-	indexOfFirstParameter := bytes.IndexAny(pattern, dynamicSymbols)
+	// === DYNAMIC HOST === //
 
-	if indexOfFirstParameter == -1 {
-		this.staticPart = string(trimSlashes(pattern, 0))
+	indexOf := bytes.IndexByte(pattern, '/')
+
+	if indexOf > 0 {
+		this.dynamicHost = bytes.Split(pattern[:indexOf], dotSlice)
+		pattern = pattern[indexOf:]
+	} else if indexOf == -1 {
+		this.dynamicHost = bytes.Split(pattern, dotSlice)
 		return
 	}
-	dynamicPattern := pattern[indexOfFirstParameter:]
 
-	staticPart := pattern[:indexOfFirstParameter]
-	staticPart = staticPart[:bytes.LastIndexByte(staticPart, '/')+1]
+	// === STATIC AND DYNAMIC PATH PATTERN === //
 
-	this.staticPart = string(trimSlashes(staticPart, 0))
-	this.dynamicPart = bytes.Split(trimSlashes(dynamicPattern, 0), slashSlice)
+	indexOf = bytes.IndexAny(pattern, dynamicSymbols)
+
+	if indexOf == -1 {
+		this.staticPattern = string(trimSlashes(pattern, 0))
+		return
+	}
+	dynamicPattern := pattern[indexOf:]
+
+	staticPattern := pattern[:indexOf]
+	staticPattern = staticPattern[:bytes.LastIndexByte(staticPattern, '/')+1]
+
+	this.staticPattern = string(trimSlashes(staticPattern, 0))
+	this.dynamicPattern = bytes.Split(trimSlashes(dynamicPattern, 0), slashSlice)
 }
 
-func (this *route) matchPathAndGetParam(path string) (params map[string]string, status int) {
+func (this *route) matchURLAndGetParam(hostPort, path string) (params map[string]string, status int) {
+	params = make(map[string]string)
 	pathBytes := trimSlashes([]byte(path), 0)
 
+	// Validate dynamic host
+	if len(this.dynamicHost) > 0 {
+		host, _ := splitHostPort(hostPort)
+		status = matchTokens(this.dynamicHost, bytes.Split([]byte(host), dotSlice), params)
+
+		if status != 0 {
+			return nil, status
+		}
+	}
+
 	// The static part of the path was already validated by 'http' library
-	if len(pathBytes) == len([]byte(this.staticPart)) && len(this.dynamicPart) == 0 {
+	if len(pathBytes) == len([]byte(this.staticPattern)) && len(this.dynamicPattern) == 0 {
 		return nil, 0
 	}
 
 	// Split dynamic part of the path by slashes
-	dynamicPath := bytes.Split(trimSlashes(pathBytes, len(this.staticPart)), slashSlice)
-	dynamicPathLength := len(dynamicPath)
+	dynamicPath := bytes.Split(trimSlashes(pathBytes, len(this.staticPattern)), slashSlice)
 
-	params = make(map[string]string)
+	// Validate dynamic path
+	return params, matchTokens(this.dynamicPattern, dynamicPath, params)
+}
 
-	for index, key := range this.dynamicPart {
+func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) int {
+	tokensLength := len(tokens)
+
+	for index, key := range tokensPattern {
 
 		// Handle when the path finishes before of the pattern
-		if index == dynamicPathLength {
+		if index == tokensLength {
 			if isOptional(key) {
-				return params, 0
+				return 0
 			}
-			return nil, http.StatusNotFound
+			return http.StatusNotFound
 		}
 
 		switch key[0] {
@@ -106,32 +141,32 @@ func (this *route) matchPathAndGetParam(path string) (params map[string]string, 
 		case '*':
 			// case '**': ignore all
 			if len(key) > 1 && key[1] == '*' {
-				return params, 0
+				return 0
 			}
 
 		// case '{': parse param and validate
 		case '{':
-			name, value, isOptional := parsePathParam(key, dynamicPath[index])
+			name, value, isOptional := parsePathParam(key, tokens[index])
 
 			if len(value) != 0 {
 				params[string(name)] = string(value)
 			} else if !isOptional {
-				return nil, http.StatusBadRequest
+				return http.StatusBadRequest
 			}
 
 		// default: compare static names
 		default:
-			if bytes.Compare(key, dynamicPath[index]) != 0 {
-				return nil, http.StatusNotFound
+			if bytes.Compare(key, tokens[index]) != 0 {
+				return http.StatusNotFound
 			}
 		}
 	}
 
-	if len(this.dynamicPart) == len(dynamicPath) {
-		return params, 0
+	if len(tokensPattern) == tokensLength {
+		return 0
 	}
 
-	return nil, http.StatusNotFound
+	return http.StatusNotFound
 }
 
 func parsePathParam(pattern, path []byte) (name, value []byte, isOpt bool) {
@@ -185,4 +220,15 @@ func (this *route) acceptsMethod(method string) bool {
 		}
 	}
 	return false
+}
+
+func splitHostPort(hostPort string) (host, port string) {
+	host = hostPort
+
+	colon := strings.LastIndexByte(host, ':')
+	if colon == -1 {
+		return host, ""
+	}
+
+	return hostPort[:colon], hostPort[colon+1:]
 }
