@@ -71,12 +71,16 @@ func (this *route) extractAndSetPattern(pattern []byte) {
 
 	indexOf := bytes.IndexByte(pattern, '/')
 
+	if indexOf == -1 {
+		this.dynamicHost = bytes.Split(pattern, dotSlice)
+		reversePattern(this.dynamicHost)
+		return
+	}
+
 	if indexOf > 0 {
 		this.dynamicHost = bytes.Split(pattern[:indexOf], dotSlice)
+		reversePattern(this.dynamicHost)
 		pattern = pattern[indexOf:]
-	} else if indexOf == -1 {
-		this.dynamicHost = bytes.Split(pattern, dotSlice)
-		return
 	}
 
 	// === STATIC AND DYNAMIC PATH PATTERN === //
@@ -103,7 +107,9 @@ func (this *route) matchURLAndGetParam(hostPort, path string) (params map[string
 	// Validate dynamic host
 	if len(this.dynamicHost) > 0 {
 		host, _ := splitHostPort(hostPort)
-		status = matchTokens(this.dynamicHost, bytes.Split([]byte(host), dotSlice), params)
+		hostTokens := bytes.Split([]byte(host), dotSlice)
+		reversePattern(hostTokens)
+		status = matchTokens(this.dynamicHost, hostTokens, params)
 
 		if status != 0 {
 			return nil, status
@@ -231,4 +237,10 @@ func splitHostPort(hostPort string) (host, port string) {
 	}
 
 	return hostPort[:colon], hostPort[colon+1:]
+}
+
+func reversePattern(pattern [][]byte) {
+	for i, j := 0, len(pattern)-1; i < j; i, j = i+1, j-1 {
+		pattern[i], pattern[j] = pattern[j], pattern[i]
+	}
 }
