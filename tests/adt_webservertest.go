@@ -72,12 +72,14 @@ func (this WebServerTest) DoAndGetDetails() (req *http.Request, res *http.Respon
 	// Given
 	this.SetDefaults()
 
-	server := webserver.NewServer(this.ServerHost + ":" + strconv.Itoa(this.ServerPort))
+	server := webserver.NewServer()
 	server.Handle(this.ServerMethod, this.ServerPattern, this.ServerHandler)
 
-	go server.ListenAndServe()
-
 	// When
+	go func() {
+		panic(server.ListenAndServe(this.ServerHost + ":" + strconv.Itoa(this.ServerPort)))
+	}()
+
 	var body io.Reader
 	if this.RequestBody != nil {
 		body = bytes.NewBuffer(this.RequestBody)
@@ -95,7 +97,7 @@ func (this WebServerTest) DoAndGetDetails() (req *http.Request, res *http.Respon
 	}
 
 	if this.RequestContentType != "" {
-		req.Header.Add("Content-Type", this.RequestContentType)
+		req.Header.Add(webserver.ContentTypeHeader, this.RequestContentType)
 	}
 
 	res, err = http.DefaultClient.Do(req)
