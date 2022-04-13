@@ -139,6 +139,19 @@ func TestShouldReturnBadRequest(t *testing.T) {
 	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusBadRequest))
 }
 
+// Issue fixed on 0.3.2
+func TestShouldParseDomainParamEvenWithoutPathParam(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "{domain}/", RequestPath: "/"}
+
+	// Then
+	test.ServerHandler = func(req *webserver.Request, res *webserver.Response) {
+		assert.Equal(t, "localhost", req.Param("domain"))
+	}
+
+	panicIfNotNil(test.Do())
+}
+
 func TestShouldParseParams(t *testing.T) {
 	// When
 	test := WebServerTest{
