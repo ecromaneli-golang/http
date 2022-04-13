@@ -123,7 +123,7 @@ func TestShouldAcceptRightDomain(t *testing.T) {
 	panicIfNotNil(test2.Do())
 }
 
-func TestShouldReturnNotFound(t *testing.T) {
+func TestShouldReturnNotFound1(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/", RequestPath: "/static1"}
 
@@ -131,25 +131,12 @@ func TestShouldReturnNotFound(t *testing.T) {
 	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusNotFound))
 }
 
-func TestShouldReturnBadRequest(t *testing.T) {
+func TestShouldReturnNotFound2(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/{id}", RequestPath: "/"}
 
 	// Then
-	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusBadRequest))
-}
-
-// Issue fixed on 0.3.2
-func TestShouldParseDomainParamEvenWithoutPathParam(t *testing.T) {
-	// When
-	test := WebServerTest{ServerPattern: "{domain}/", RequestPath: "/"}
-
-	// Then
-	test.ServerHandler = func(req *webserver.Request, res *webserver.Response) {
-		assert.Equal(t, "localhost", req.Param("domain"))
-	}
-
-	panicIfNotNil(test.Do())
+	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusNotFound))
 }
 
 func TestShouldParseParams(t *testing.T) {
@@ -175,6 +162,28 @@ func TestShouldParseParams(t *testing.T) {
 	}
 
 	panicIfNotNil(test.Do())
+}
+
+// Issue fixed on 0.3.2
+func TestShouldParseDomainParamEvenWithoutPathParam(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "{domain}/", RequestPath: "/"}
+
+	// Then
+	test.ServerHandler = func(req *webserver.Request, res *webserver.Response) {
+		assert.Equal(t, "localhost", req.Param("domain"))
+	}
+
+	panicIfNotNil(test.Do())
+}
+
+// Issue fixed on 0.3.3: When the token * was passed to isOptional(token), an index out of range [-1] was thrown
+func TestShouldNotPanicWhenPathIsGreaterThenPatternAndNextTokenIsShort(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "/static1/*", RequestPath: "/static1"}
+
+	// Then
+	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusNotFound))
 }
 
 func panicIfNotNil(err error) {
