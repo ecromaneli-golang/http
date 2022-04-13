@@ -118,7 +118,7 @@ func (this *route) matchURLAndGetParam(hostPort, path string) (params map[string
 
 	// The static part of the path was already validated by 'http' library
 	if len(pathBytes) == len([]byte(this.staticPattern)) && len(this.dynamicPattern) == 0 {
-		return nil, 0
+		return params, 0
 	}
 
 	// Split dynamic part of the path by slashes
