@@ -18,6 +18,8 @@ type route struct {
 
 var slashSlice = []byte{'/'}
 var dotSlice = []byte{'.'}
+var emptySlice = make([]byte, 0)
+var emptyMatrix = make([][]byte, 0)
 
 const dynamicSymbols = "{*"
 
@@ -26,12 +28,9 @@ func (this *routesByPattern) getRoute(method, pattern, hostPort, path string) (c
 	errorStatus := http.StatusNotFound
 
 	for _, route := range routes {
-		params, statusCode := route.matchURLAndGetParam(hostPort, path)
+		params, status := route.matchURLAndGetParam(hostPort, path)
 
-		if statusCode != 0 {
-			if errorStatus == http.StatusNotFound {
-				errorStatus = statusCode
-			}
+		if !status {
 			continue
 		}
 
@@ -88,7 +87,7 @@ func (this *route) extractAndSetPattern(pattern []byte) {
 	indexOf = bytes.IndexAny(pattern, dynamicSymbols)
 
 	if indexOf == -1 {
-		this.staticPattern = string(trimSlashes(pattern, 0))
+		this.staticPattern = string(trimSlashes(pattern))
 		return
 	}
 	dynamicPattern := pattern[indexOf:]
@@ -96,49 +95,54 @@ func (this *route) extractAndSetPattern(pattern []byte) {
 	staticPattern := pattern[:indexOf]
 	staticPattern = staticPattern[:bytes.LastIndexByte(staticPattern, '/')+1]
 
-	this.staticPattern = string(trimSlashes(staticPattern, 0))
-	this.dynamicPattern = bytes.Split(trimSlashes(dynamicPattern, 0), slashSlice)
+	this.staticPattern = string(trimSlashes(staticPattern))
+	this.dynamicPattern = bytes.Split(trimSlashes(dynamicPattern), slashSlice)
 }
 
-func (this *route) matchURLAndGetParam(hostPort, path string) (params map[string]string, status int) {
+func (this *route) matchURLAndGetParam(hostPort, path string) (params map[string]string, status bool) {
 	params = make(map[string]string)
-	pathBytes := trimSlashes([]byte(path), 0)
 
 	// Validate dynamic host
 	if len(this.dynamicHost) > 0 {
 		host, _ := splitHostPort(hostPort)
 		hostTokens := bytes.Split([]byte(host), dotSlice)
 		reversePattern(hostTokens)
-		status = matchTokens(this.dynamicHost, hostTokens, params)
 
-		if status != 0 {
-			return nil, status
+		if !matchTokens(this.dynamicHost, hostTokens, params) {
+			return nil, false
 		}
 	}
 
 	// The static part of the path was already validated by 'http' library
-	if len(pathBytes) == len([]byte(this.staticPattern)) && len(this.dynamicPattern) == 0 {
-		return params, 0
+	if len(path) == len(this.staticPattern) && len(this.dynamicPattern) == 0 {
+		return params, true
 	}
 
 	// Split dynamic part of the path by slashes
-	dynamicPath := bytes.Split(trimSlashes(pathBytes, len(this.staticPattern)), slashSlice)
+	pathBytes := trimSlashes(trimSlashes([]byte(path))[len(this.staticPattern):])
+
+	var dynamicPath [][]byte
+	if len(pathBytes) > 0 {
+		dynamicPath = bytes.Split(pathBytes, slashSlice)
+	} else {
+		dynamicPath = emptyMatrix
+	}
 
 	// Validate dynamic path
 	return params, matchTokens(this.dynamicPattern, dynamicPath, params)
 }
 
-func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) int {
+func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) bool {
 	tokensLength := len(tokens)
 
 	for index, key := range tokensPattern {
 
 		// Handle when the path finishes before of the pattern
 		if index == tokensLength {
-			if isOptional(key) {
-				return 0
+			if len(key) > 1 && isOptional(key) {
+				return true
 			}
-			return http.StatusNotFound
+			return false
 		}
 
 		switch key[0] {
@@ -147,7 +151,7 @@ func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) int {
 		case '*':
 			// case '**': ignore all
 			if len(key) > 1 && key[1] == '*' {
-				return 0
+				return true
 			}
 
 		// case '{': parse param and validate
@@ -157,22 +161,22 @@ func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) int {
 			if len(value) != 0 {
 				params[string(name)] = string(value)
 			} else if !isOptional {
-				return http.StatusBadRequest
+				return false
 			}
 
 		// default: compare static names
 		default:
 			if bytes.Compare(key, tokens[index]) != 0 {
-				return http.StatusNotFound
+				return false
 			}
 		}
 	}
 
 	if len(tokensPattern) == tokensLength {
-		return 0
+		return true
 	}
 
-	return http.StatusNotFound
+	return false
 }
 
 func parsePathParam(pattern, path []byte) (name, value []byte, isOpt bool) {
@@ -195,20 +199,18 @@ func isOptional(pattern []byte) bool {
 	return pattern[len(pattern)-2] == '?'
 }
 
-func trimSlashes(data []byte, begin int) []byte {
-	dataLength := len(data)
+func trimSlashes(data []byte) []byte {
+	begin, end := 0, len(data)
 
-	if dataLength <= begin {
+	if end == 0 {
 		return data
 	}
 
-	end := len(data)
-
-	if data[begin] == '/' && dataLength > 1 {
+	if data[begin] == '/' {
 		begin++
 	}
 
-	if data[end-1] == '/' {
+	if end > 1 && data[end-1] == '/' {
 		end--
 	}
 
