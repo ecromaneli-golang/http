@@ -180,10 +180,18 @@ func TestShouldParseDomainParamEvenWithoutPathParam(t *testing.T) {
 // Issue fixed on 0.3.3: When the token * was passed to isOptional(token), an index out of range [-1] was thrown
 func TestShouldNotPanicWhenPathIsGreaterThenPatternAndNextTokenIsShort(t *testing.T) {
 	// When
-	test := WebServerTest{ServerPattern: "/static1/*", RequestPath: "/static1"}
+	test := WebServerTest{ServerPattern: "/static1/*/{opt?}", RequestPath: "/static1"}
 
 	// Then
-	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusNotFound))
+	panicIfNotNil(test.Do())
+}
+
+func TestShouldAcceptWildCard(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "/**", RequestPath: "/"}
+
+	// Then
+	panicIfNotNil(test.Do())
 }
 
 func panicIfNotNil(err error) {

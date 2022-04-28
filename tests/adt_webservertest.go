@@ -10,7 +10,7 @@ import (
 	"github.com/ecromaneli-golang/http/webserver"
 )
 
-var port = 8000
+var port = 8500
 
 type WebServerTest struct {
 	ServerHost    string
