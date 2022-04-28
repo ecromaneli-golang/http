@@ -136,13 +136,11 @@ func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) bool 
 	tokensLength := len(tokens)
 
 	for index, key := range tokensPattern {
+		var hasToken bool = index < tokensLength
+		var tokenValue []byte
 
-		// Handle when the path finishes before of the pattern
-		if index == tokensLength {
-			if len(key) > 1 && isOptional(key) {
-				return true
-			}
-			return false
+		if hasToken {
+			tokenValue = tokens[index]
 		}
 
 		switch key[0] {
@@ -156,34 +154,30 @@ func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) bool 
 
 		// case '{': parse param and validate
 		case '{':
-			name, value, isOptional := parsePathParam(key, tokens[index])
+			name, isOptional := parsePathParam(key, tokenValue)
 
-			if len(value) != 0 {
-				params[string(name)] = string(value)
-			} else if !isOptional {
-				return false
+			if !hasToken {
+				return isOptional
 			}
+
+			params[string(name)] = string(tokenValue)
 
 		// default: compare static names
 		default:
-			if bytes.Compare(key, tokens[index]) != 0 {
+			if bytes.Compare(key, tokenValue) != 0 {
 				return false
 			}
 		}
 	}
 
-	if len(tokensPattern) == tokensLength {
-		return true
-	}
-
-	return false
+	return len(tokensPattern) >= tokensLength
 }
 
-func parsePathParam(pattern, path []byte) (name, value []byte, isOpt bool) {
+func parsePathParam(pattern, path []byte) (name []byte, isOpt bool) {
 	isOpt = isOptional(pattern)
 
 	if !isOpt && len(path) == 0 {
-		return nil, path, isOpt
+		return nil, isOpt
 	}
 
 	end := len(pattern) - 1
@@ -192,11 +186,17 @@ func parsePathParam(pattern, path []byte) (name, value []byte, isOpt bool) {
 		end--
 	}
 
-	return pattern[1:end], path, isOpt
+	return pattern[1:end], isOpt
 }
 
 func isOptional(pattern []byte) bool {
-	return pattern[len(pattern)-2] == '?'
+	tokenIndex := len(pattern) - 2
+
+	if tokenIndex < 2 {
+		return false
+	}
+
+	return pattern[tokenIndex] == '?'
 }
 
 func trimSlashes(data []byte) []byte {
