@@ -92,7 +92,7 @@ Example:
 
 ```golang
 
-    server.Get("{subdomain}.github.com/example/{id}/{opt?}**", ...
+    server.Get("{subdomain}.github.com/example/{id}/**", ...
 
     // will match with
 
