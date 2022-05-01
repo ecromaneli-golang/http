@@ -6,38 +6,43 @@ import (
 )
 
 type serverError struct {
-	StatusCode int
-	Message    string
-	Log        any
+	statusCode int
+	message    string
+	log        any
 }
 
 func NewError(log any) *serverError {
-	return (&serverError{Log: log}).setDefaults()
+	return (&serverError{log: log})
 }
 
 func NewHTTPError(statusCode int, log any) *serverError {
-	return (&serverError{StatusCode: statusCode, Log: log}).setDefaults()
+	return (&serverError{statusCode: statusCode, log: log})
+}
+
+func (this *serverError) ExposeLog() *serverError {
+	this.message = fmt.Sprintf("%v", this.log)
+	return this
 }
 
 func (this *serverError) Error() string {
-	return fmt.Sprintf("[%d] %v", this.StatusCode, this.Log)
+	return fmt.Sprintf("[%d] %v", this.statusCode, this.log)
 }
 
 func (this *serverError) Panic() {
-	panic(this)
+	panic(this.setDefaults())
 }
 
 func (this *serverError) setDefaults() *serverError {
-	if this.StatusCode == 0 {
-		this.StatusCode = http.StatusInternalServerError
+	if this.statusCode == 0 {
+		this.statusCode = http.StatusInternalServerError
 	}
 
-	if this.Message == "" {
-		this.Message = http.StatusText(this.StatusCode)
+	if this.message == "" {
+		this.message = http.StatusText(this.statusCode)
 	}
 
-	if this.Log == nil {
-		this.Log = this.Message
+	if this.log == nil {
+		this.log = this.message
 	}
 
 	return this

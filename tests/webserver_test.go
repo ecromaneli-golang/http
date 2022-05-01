@@ -8,6 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestShouldAcceptWildCard(t *testing.T) {
+	// When
+	test := WebServerTest{ServerPattern: "/**", RequestPath: "/"}
+
+	// Then
+	panicIfNotNil(test.Do())
+}
+
 func TestShouldHandleComplexURL(t *testing.T) {
 	// When
 	test := WebServerTest{
@@ -39,7 +47,7 @@ func TestShouldNotNeedOptionalParameters(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash1(t *testing.T) {
+func TestShouldNotNeedTrailingSlash1(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/static1/static2/", RequestPath: "/static1/static2"}
 
@@ -47,7 +55,7 @@ func TestShouldNotNeedFinalSlash1(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash2(t *testing.T) {
+func TestShouldNotNeedTrailingSlash2(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/static1/static2", RequestPath: "/static1/static2/"}
 
@@ -55,7 +63,7 @@ func TestShouldNotNeedFinalSlash2(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash3(t *testing.T) {
+func TestShouldNotNeedTrailingSlash3(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/{p1}/static1/", RequestPath: "/param1/static1"}
 
@@ -63,7 +71,7 @@ func TestShouldNotNeedFinalSlash3(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash4(t *testing.T) {
+func TestShouldNotNeedTrailingSlash4(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/{p1}/static1", RequestPath: "/param1/static1/"}
 
@@ -71,7 +79,7 @@ func TestShouldNotNeedFinalSlash4(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash5(t *testing.T) {
+func TestShouldNotNeedTrailingSlash5(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/static1/{p1}/", RequestPath: "/static1/param1"}
 
@@ -79,7 +87,7 @@ func TestShouldNotNeedFinalSlash5(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash6(t *testing.T) {
+func TestShouldNotNeedTrailingSlash6(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/static1/{p1}", RequestPath: "/static1/param1/"}
 
@@ -87,7 +95,7 @@ func TestShouldNotNeedFinalSlash6(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash7(t *testing.T) {
+func TestShouldNotNeedTrailingSlash7(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/static1/{o1?}/{o2?}/", RequestPath: "/static1"}
 
@@ -95,7 +103,7 @@ func TestShouldNotNeedFinalSlash7(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldNotNeedFinalSlash8(t *testing.T) {
+func TestShouldNotNeedTrailingSlash8(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "localhost/static1/{o1?}/{o2?}/", RequestPath: "/static1"}
 
@@ -137,6 +145,22 @@ func TestShouldReturnNotFound2(t *testing.T) {
 
 	// Then
 	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusNotFound))
+}
+
+func TestShouldReturnMethodNotAllowed(t *testing.T) {
+	// When
+	test := WebServerTest{ServerMethod: "POST", ServerPattern: "/static1/static2/", RequestMethod: "GET", RequestPath: "/static1/static2"}
+
+	// Then
+	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusMethodNotAllowed))
+}
+
+func TestShouldReturnMethodNotAllowed2(t *testing.T) {
+	// When
+	test := WebServerTest{ServerMethod: "GET", ServerPattern: "/static1/static2/", RequestMethod: "POST", RequestPath: "/static1/static2"}
+
+	// Then
+	assert.ErrorContains(t, test.Do(), http.StatusText(http.StatusMethodNotAllowed))
 }
 
 func TestShouldParseParams(t *testing.T) {
@@ -186,9 +210,10 @@ func TestShouldNotPanicWhenPathIsGreaterThenPatternAndNextTokenIsShort(t *testin
 	panicIfNotNil(test.Do())
 }
 
-func TestShouldAcceptWildCard(t *testing.T) {
+// Issue fixed on 0.5.0: When pattern has trailing slash and the request doesn't, the request method was changed to GET and failed with Method Not Allowed.
+func TestShouldKeepMethodWhenNotUsingTrailingSlash(t *testing.T) {
 	// When
-	test := WebServerTest{ServerPattern: "/**", RequestPath: "/"}
+	test := WebServerTest{ServerMethod: "POST", ServerPattern: "/static1/static2/", RequestMethod: "POST", RequestPath: "/static1/static2"}
 
 	// Then
 	panicIfNotNil(test.Do())
