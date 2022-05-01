@@ -88,13 +88,9 @@ func (this *Server) MultiHandle(methods []string, pattern string, handler Handle
 		return this
 	}
 
-	handlePattern := pattern + "/"
+	handlePattern := "/" + pattern
 
-	if len(handlePattern) > 1 {
-		handlePattern = "/" + handlePattern
-	}
-
-	this.mux.HandleFunc(handlePattern, func(rw http.ResponseWriter, req *http.Request) {
+	handlerFunc := func(rw http.ResponseWriter, req *http.Request) {
 
 		request := newRequest(req)
 		response := newResponse(rw, this.fileSystem, request)
@@ -106,7 +102,13 @@ func (this *Server) MultiHandle(methods []string, pattern string, handler Handle
 
 		request.setPathParams(params)
 		route.handler(request, response)
-	})
+	}
+
+	this.mux.HandleFunc(handlePattern, handlerFunc)
+
+	if len(handlePattern) > 1 {
+		this.mux.HandleFunc(handlePattern+"/", handlerFunc)
+	}
 
 	return this
 }
@@ -184,7 +186,7 @@ func catchAllServerErrors(req *Request, res *Response) {
 	}
 
 	if !req.IsDone() {
-		res.Status(customErr.StatusCode).WriteText(customErr.Message)
+		res.Status(customErr.statusCode).WriteText(customErr.message)
 	}
 
 	fmt.Println(time.Now().Format(dateFormat), "- ERROR webserver:", customErr.Error())
