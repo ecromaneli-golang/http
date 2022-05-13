@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type Request struct {
@@ -140,7 +141,7 @@ func (this *Request) Body() []byte {
 		body, err := ioutil.ReadAll(this.Raw.Body)
 		panicIfNotNil(err)
 
-		this.Raw.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		this.recreateBodyReader(body)
 		this.body = body
 	}
 
@@ -196,22 +197,36 @@ func (this *Request) parseQueryParams() {
 }
 
 func (this *Request) parseBodyParams() {
-	switch this.Header(ContentTypeHeader) {
+	contentType := this.Header(ContentTypeHeader)
 
-	case ContentTypeFormUrlEncoded:
+	if strings.Contains(contentType, ContentTypeFormUrlEncoded) {
 		this.parseFormParams()
-
-	case ContentTypeFormData:
+	} else if strings.Contains(contentType, ContentTypeFormData) {
 		this.parseMultiPartFormParams()
 	}
 }
 
+func (this *Request) recreateBodyReader(body []byte) {
+	if body == nil {
+		body = this.Body()
+	}
+
+	_ = this.Raw.Body.Close()
+	this.Raw.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+}
+
 func (this *Request) parseFormParams() {
+	body := this.Body()
+	defer this.recreateBodyReader(body)
+
 	panicIfNotNil(this.Raw.ParseForm())
 	this.copyMapToParams(this.Raw.PostForm)
 }
 
 func (this *Request) parseMultiPartFormParams() {
+	body := this.Body()
+	defer this.recreateBodyReader(body)
+
 	panicIfNotNil(this.Raw.ParseMultipartForm(512 * 1024))
 
 	this.copyMapToParams(this.Raw.MultipartForm.Value)
