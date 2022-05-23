@@ -12,11 +12,11 @@ type serverError struct {
 }
 
 func NewError(log any) *serverError {
-	return (&serverError{log: log})
+	return (&serverError{log: log}).setDefaults()
 }
 
 func NewHTTPError(statusCode int, log any) *serverError {
-	return (&serverError{statusCode: statusCode, log: log})
+	return (&serverError{statusCode: statusCode, log: log}).setDefaults()
 }
 
 func (this *serverError) ExposeLog() *serverError {
@@ -29,7 +29,7 @@ func (this *serverError) Error() string {
 }
 
 func (this *serverError) Panic() {
-	panic(this.setDefaults())
+	panic(this)
 }
 
 func (this *serverError) setDefaults() *serverError {
