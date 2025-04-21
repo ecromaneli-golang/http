@@ -242,5 +242,16 @@ func panicIfNotNil(err error) {
 // 	server.Get("/message/{msg}", func(req *webserver.Request, res *webserver.Response) {
 // 		res.WriteText(req.Param("msg"))
 // 	})
+// 	server.Get("/events", func(req *webserver.Request, res *webserver.Response) {
+// 		res.Headers(webserver.EventStreamHeader)
+// 		event := &webserver.Event{
+// 			Name: "update",
+// 			Data: map[string]string{"message": "Hello, SSE!"},
+// 		}
+// 		res.FlushEvent(event)
+
+// 		// Keep-Alive
+// 		<-req.Context().Done()
+// 	})
 // 	server.ListenAndServe(":8080")
 // }

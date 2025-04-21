@@ -82,6 +82,9 @@ server.Get("/events", func(req *webserver.Request, res *webserver.Response) {
         Data: map[string]string{"message": "Hello, SSE!"},
     }
     res.FlushEvent(event)
+
+    // Keep-Alive
+    <-req.Context().Done()
 })
 ```
 

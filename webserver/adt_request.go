@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -216,6 +217,97 @@ func (r *Request) IsDone() bool {
 	default:
 		return false
 	}
+}
+
+// WithContext returns a shallow copy of r with its context changed
+// to ctx. The provided ctx must be non-nil.
+//
+// For outgoing client request, the context controls the entire
+// lifetime of a request and its response: obtaining a connection,
+// sending the request, and reading the response headers and body.
+//
+// To create a new request with a context, use [NewRequestWithContext].
+// To make a deep copy of a request with a new context, use [Request.Clone].
+func (r *Request) WithContext(ctx context.Context) *Request {
+	newRaw := r.Raw.WithContext(ctx)
+	newReq := &Request{
+		Raw:        newRaw,
+		response:   r.response,
+		params:     r.params,
+		files:      r.files,
+		body:       r.body,
+		readParams: r.readParams,
+		readBody:   r.readBody,
+		isDone:     r.isDone,
+	}
+	return newReq
+}
+
+// Context returns the request's context. To change the context, use
+// [Request.Clone] or [Request.WithContext].
+//
+// The returned context is always non-nil; it defaults to the
+// background context.
+//
+// For outgoing client requests, the context controls cancellation.
+//
+// For incoming server requests, the context is canceled when the
+// client's connection closes, the request is canceled (with HTTP/2),
+// or when the ServeHTTP method returns.
+func (r *Request) Context() context.Context {
+	return r.Raw.Context()
+}
+
+// Clone returns a deep copy of the request with the same context.
+//
+// The clone includes a copy of the URL, headers, and request body.
+// If the body is an io.ReadCloser, the original body is not closed.
+//
+// The cloned request inherits all properties of the original request.
+func (r *Request) Clone(ctx context.Context) *Request {
+	if ctx == nil {
+		ctx = r.Context()
+	}
+
+	rawClone := r.Raw.Clone(ctx)
+
+	// Create a new Request instance with copied fields
+	clonedReq := &Request{
+		Raw:        rawClone,
+		response:   r.response,
+		params:     make(map[string][]string),
+		files:      make(map[string][]*multipart.FileHeader),
+		readParams: false, // Reset to force re-parsing
+		readBody:   false, // Reset to force re-reading
+		isDone:     r.isDone,
+	}
+
+	// Deep copy the params map
+	if r.params != nil {
+		for k, v := range r.params {
+			paramsCopy := make([]string, len(v))
+			copy(paramsCopy, v)
+			clonedReq.params[k] = paramsCopy
+		}
+	}
+
+	// Deep copy the files map
+	if r.files != nil {
+		for k, v := range r.files {
+			filesCopy := make([]*multipart.FileHeader, len(v))
+			copy(filesCopy, v) // Note: FileHeader objects themselves aren't deep copied
+			clonedReq.files[k] = filesCopy
+		}
+	}
+
+	// Copy body if already read
+	if r.readBody {
+		clonedReq.body = make([]byte, len(r.body))
+		copy(clonedReq.body, r.body)
+		clonedReq.readBody = true
+	}
+
+	return clonedReq
 }
 
 func (r *Request) parseParams() {
