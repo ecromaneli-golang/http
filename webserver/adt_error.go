@@ -5,47 +5,69 @@ import (
 	"net/http"
 )
 
+// serverError represents an HTTP server error with status code and message.
 type serverError struct {
 	statusCode int
 	message    string
 	log        any
 }
 
+// NewError creates a new serverError with the given log information.
+//
+// The log parameter contains error details that will be logged but not exposed to the client.
+//
+// Returns a serverError instance with default status code (500 Internal Server Error).
 func NewError(log any) *serverError {
 	return (&serverError{log: log}).setDefaults()
 }
 
+// NewHTTPError creates a new serverError with the specified status code and log information.
+//
+// The statusCode parameter is the HTTP status code to return to the client.
+// The log parameter contains error details that will be logged but not exposed to the client.
+//
+// Returns a configured serverError instance.
 func NewHTTPError(statusCode int, log any) *serverError {
 	return (&serverError{statusCode: statusCode, log: log}).setDefaults()
 }
 
-func (this *serverError) ExposeLog() *serverError {
-	this.message = fmt.Sprintf("%v", this.log)
-	return this
+// ExposeLog sets the error message to be the same as the log information.
+//
+// This makes the error details visible to clients, so should be used only when
+// it's safe to expose internal error details.
+//
+// Returns the serverError instance for method chaining.
+func (se *serverError) ExposeLog() *serverError {
+	se.message = fmt.Sprintf("%v", se.log)
+	return se
 }
 
-func (this *serverError) Error() string {
-	return fmt.Sprintf("[%d] %v", this.statusCode, this.log)
+// Error returns a string representation of the error.
+//
+// The format is "[status_code] log_message".
+//
+// Implements the error interface.
+func (se *serverError) Error() string {
+	return fmt.Sprintf("[%d] %v", se.statusCode, se.log)
 }
 
-func (this *serverError) Panic() {
-	panic(this)
+// Panic triggers a panic with the serverError.
+//
+// This is used to immediately stop execution and propagate the error up the call stack.
+func (se *serverError) Panic() {
+	panic(se)
 }
 
-func (this *serverError) setDefaults() *serverError {
-	if this.statusCode == 0 {
-		this.statusCode = http.StatusInternalServerError
+func (se *serverError) setDefaults() *serverError {
+	if se.statusCode == 0 {
+		se.statusCode = http.StatusInternalServerError
 	}
 
-	if this.message == "" {
-		this.message = http.StatusText(this.statusCode)
+	if se.log == nil {
+		se.log = se.message
 	}
 
-	if this.log == nil {
-		this.log = this.message
-	}
-
-	return this
+	return se
 }
 
 func panicIfNotNil(err error) {

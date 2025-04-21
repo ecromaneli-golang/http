@@ -201,7 +201,7 @@ func TestShouldParseDomainParamEvenWithoutPathParam(t *testing.T) {
 	panicIfNotNil(test.Do())
 }
 
-// Issue fixed on 0.3.3: When the token * was passed to isOptional(token), an index out of range [-1] was thrown
+// Issue fixed on 0.3.3: When the token * is passed to isOptional(token), an index out of range [-1] is thrown
 func TestShouldNotPanicWhenPathIsGreaterThenPatternAndNextTokenIsShort(t *testing.T) {
 	// When
 	test := WebServerTest{ServerPattern: "/static1/*/{opt?}", RequestPath: "/static1"}
@@ -210,7 +210,7 @@ func TestShouldNotPanicWhenPathIsGreaterThenPatternAndNextTokenIsShort(t *testin
 	panicIfNotNil(test.Do())
 }
 
-// Issue fixed on 0.5.0: When pattern has trailing slash and the request doesn't, the request method was changed to GET and failed with Method Not Allowed.
+// Issue fixed on 0.5.0: When pattern has trailing slash and the request doesn't, the request method is changed to GET and fails with Method Not Allowed.
 func TestShouldKeepMethodWhenNotUsingTrailingSlash(t *testing.T) {
 	// When
 	test := WebServerTest{ServerMethod: "POST", ServerPattern: "/static1/static2/", RequestMethod: "POST", RequestPath: "/static1/static2"}
@@ -224,3 +224,23 @@ func panicIfNotNil(err error) {
 		panic(err)
 	}
 }
+
+// func TestManually(t *testing.T) {
+// 	_, err := url.Parse("localhost:8080")
+// 	if err != nil {
+// 		fmt.Println("Error parsing URL:", err)
+// 	}
+// 	fmt.Println("Starting web server on port 8080...")
+// 	server := webserver.NewServer()
+// 	server.SetLogLevel("ALL")
+// 	server.Get("127.0.0.1/a/b/c/{d}/*/{e?}", func(req *webserver.Request, res *webserver.Response) {
+// 		res.WriteText("Accessible only from 127.0.0.1")
+// 	})
+// 	server.Get("/status/{status}", func(req *webserver.Request, res *webserver.Response) {
+// 		res.Status(req.IntParam("status")).NoBody()
+// 	})
+// 	server.Get("/message/{msg}", func(req *webserver.Request, res *webserver.Response) {
+// 		res.WriteText(req.Param("msg"))
+// 	})
+// 	server.ListenAndServe(":8080")
+// }

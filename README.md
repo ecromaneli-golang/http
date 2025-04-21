@@ -1,181 +1,306 @@
-# http/WebServer
-An easy-to-use Router. The main objective here is to have what you want right when you want it. Just that.
+# WebServer
 
-No benchmarks done yet.
+A lightweight and flexible HTTP router for Go, designed to simplify web development with dynamic routing, parameter handling, and intuitive APIs.
 
-## Basic Usage
-```go
-    import "github.com/ecromaneli-golang/http/webserver"
-    
-    server := webserver.NewServer()
+[![Go Reference](https://pkg.go.dev/badge/github.com/ecromaneli-golang/http.svg)](https://pkg.go.dev/github.com/ecromaneli-golang/http)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ecromaneli-golang/http)](https://goreportcard.com/report/github.com/ecromaneli-golang/http)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-    server.Get("/example/{id}/**", func(req *webserver.Request, res *webserver.Response) {
-        
-        strId := req.Param("id")
-        uintId := req.UIntParam("id")
+## Introduction
 
-        res.Status(200).WriteText("example")
-    })
-
-    err := server.ListenAndServe(":80")
-```
+WebServer is a Go-based HTTP router that provides dynamic URL pattern matching, unified parameter collection, and a clean API for building web applications. It supports features like wildcard routing, optional parameters, and server-sent events (SSE), making it a powerful tool for creating modern web services.
 
 ## Features
 
-- Filter path dynamically (wildcard, accept-all, variables, optional variables, ...);
-- Filter host dynamically (same rules as path);
-- Parameter collector (host, path, query and body parameters all in the same place);
-- Easy-to-use response writer;
+- **Dynamic Routing**: Supports wildcards (`*`, `**`), named parameters (`{name}`), and optional parameters (`{name?}`).
+- **Unified Parameter Handling**: Access path, query, and body parameters seamlessly.
+- **Server-Sent Events (SSE)**: Built-in support for real-time updates.
+- **Static File Serving**: Serve static files with ease.
+- **Fluent Response API**: Chainable methods for setting headers, status codes, and writing responses.
 
-# Creating a Server and Routing
+## Installation
 
-How can I create a Server?
-```golang
-server := webserver.NewServer()
+To install the library, use the following command:
+
+```bash
+go get github.com/ecromaneli-golang/http
 ```
 
-How to route? The Server can be used to route directly like this:
-```golang
-server.Handle(method, pattern, handler)
-server.MultiHandle([]methods, pattern, handler)
+## How to Use
 
-// For any method
-server.All(pattern, handler)
+### Creating a Server
 
-// The four famous
-server.Get(pattern, handler)
-server.Post(pattern, handler)
-server.Put(pattern, handler)
-server.Delete(pattern, handler)
+```go
+package main
+
+import (
+    "github.com/ecromaneli-golang/http/webserver"
+)
+
+func main() {
+    // Create a new server instance
+    server := webserver.NewServer()
+
+    // Add routes
+    server.Get("/hello/{name}", func(req *webserver.Request, res *webserver.Response) {
+        name := req.Param("name")
+        res.WriteText("Hello, " + name + "!")
+    })
+
+    // Start the server
+    server.ListenAndServe(":8080")
+}
 ```
+## Examples
 
-How to [listen and] serve?
-```golang
-    server.ListenAndServe(addr)
-```
+### Example 1: Basic Routing
 
-Can I render a file or create a file server?
-```golang
-// It may change a lot, still working on making this easy
-
-// Create a server with a file-system pointing to FS root path
-server := webserver.NewServerWithFS(fileSystem)
-
-// then
-server.Get("/", func(req *webserver.Request, res *webserver.Response) {
-    res.render("path/to/file")
+```go
+server.Get("/greet/{name}", func(req *webserver.Request, res *webserver.Response) {
+    name := req.Param("name")
+    res.WriteText("Hello, " + name + "!")
 })
-
-// or to serve a file server pointing to the root path of the file system passed, do:
-
-server.FileServer("/")
-
-// Note that the '/' here is not the file system path, is the URL path.
 ```
 
-Can I listen UDP? Not yet. But we have plans to.
+### Example 2: Handling Parameters
 
-# Routing URLs
-
-The WebServer implements a set of special patterns to be able to handle paths dynamically:
-
-- `*` any;
-- `**` accepts everything ahead;
-- `{name}` variable;
-- `{name?}` optional variable;
-
-Note that the WebServer also matches the host (without port), so everything before the first slash will be recognized as host pattern. The host pattern allows the same set of special patterns then path. The only difference is that the host is compared from RTL with the path is from LTR.
-
-Also, slash as the final character of the path has no real effect.
-
-Example:
-
-```golang
-
-    server.Get("{subdomain}.github.com/example/{id}/**", ...
-
-    // will match with
-
-    www.github.com/example/1/a/b/c/d
-    subdomain.github.com/example/2/a/b
-    hash.github.com/example/value
-    hash.github.com/example/value/
-
-    // will NOT match with
-
-    github.com/example/1 // subdomain is required
-    www.github.com/example/ // id is required
-
+```go
+server.Post("/submit", func(req *webserver.Request, res *webserver.Response) {
+    name := req.Param("name")
+    age := req.IntParam("age")
+    res.WriteText("Received name: " + name + ", age: " + strconv.Itoa(age))
+})
 ```
 
-# Handler
+### Example 3: Server-Sent Events (SSE)
 
-Handler is a function that provides our modified Request and Response to make things easy. Just like this:
-
-```golang
-    func(req *webserver.Request, res *webserver.Response) {}
+```go
+server.Get("/events", func(req *webserver.Request, res *webserver.Response) {
+    res.Headers(webserver.EventStreamHeader)
+    event := &webserver.Event{
+        Name: "update",
+        Data: map[string]string{"message": "Hello, SSE!"},
+    }
+    res.FlushEvent(event)
+})
 ```
 
-Next question...
+## Request API
 
-# Request
+The `Request` object provides a unified interface for accessing HTTP request data, including headers, parameters, and body content.
 
-The `Request` was made to make my projects easier, and I hope that yours too.
+### Methods
 
-To get a Header, just use `Header` functions, we have a lot, no news here.
+#### Headers
 
-All parameters be host, path, query, body (formencoded) is provided by a single function called `.Param(name)`. You can also perform a automated conversion using `.UIntParam()`, `.FloatParam()` and ... The body is accessible by using the `.Body()` that reads the body Reader. 
+- **`Header(name string) string`**  
+  Returns the first value of the specified header.  
+  Example:
+  ```go
+  userAgent := req.Header("User-Agent")
+  ```
 
-All these functions just read the original request buffers when called to avoid some unecessary performance problems. But, of course, the project have a long way to be called "performance friendly".
+- **`Headers(name string) []string`**  
+  Returns all values of the specified header.  
+  Example:
+  ```go
+  cookies := req.Headers("Cookie")
+  ```
 
-You allways can access the original request by using the `Raw` attribute:
-```golang
-    req.Raw *http.Request
-```
+- **`AllHeaders() http.Header`**  
+  Returns all headers as a map.  
+  Example:
+  ```go
+  headers := req.AllHeaders()
+  ```
 
-You can always call `req.IsDone()` to know if the request is still alive. The method does NOT return a channel.
+#### Parameters
 
-# Response
+- **`Param(name string) string`**  
+  Returns the first value of the specified parameter (path, query, or body).  
+  Example:
+  ```go
+  id := req.Param("id")
+  ```
 
-Another ADT made to put a smile on my face when providing a response.
+- **`Params(name string) []string`**  
+  Returns all values of the specified parameter.  
+  Example:
+  ```go
+  tags := req.Params("tags")
+  ```
 
-To set a Header, just use `Header` functions, we have a lot here too.
+- **`AllParams() map[string][]string`**  
+  Returns all parameters as a map.  
+  Example:
+  ```go
+  params := req.AllParams()
+  ```
 
-Here, the name of the functions talk for yourselves (I'm lazy, I want to go back to program).
+- **`UIntParam(name string) uint`**  
+  Converts the parameter value to an unsigned integer.  
+  Example:
+  ```go
+  age := req.UIntParam("age")
+  ```
 
-I will document this better later.
+- **`IntParam(name string) int`**  
+  Converts the parameter value to an integer.  
+  Example:
+  ```go
+  count := req.IntParam("count")
+  ```
 
-```golang
-    .Status(statusCode)
-    .Write([]byte)
-    .WriteText(string)
-    .WriteJSON(any)
-    .FlushEvent(*webserver.Event) // yes! SSE just don't die.
-    .Render("path/to/file")
-```
+- **`Float64Param(name string) float64`**  
+  Converts the parameter value to a 64-bit floating-point number.  
+  Example:
+  ```go
+  price := req.Float64Param("price")
+  ```
 
-You can alsos access the original writer by using `res.RawWriter` and the file server (if passed) using `res.RawFS`.
+#### Body
 
-# License
+- **`Body() []byte`**  
+  Returns the raw body of the request.  
+  Example:
+  ```go
+  body := req.Body()
+  ```
 
-MIT License
+#### Files
 
-Copyright (c) 2022 ecromaneli-golang
+- **`File(name string) *multipart.FileHeader`**  
+  Returns the first uploaded file for the specified form field.  
+  Example:
+  ```go
+  file := req.File("profilePicture")
+  ```
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+- **`Files(name string) []*multipart.FileHeader`**  
+  Returns all uploaded files for the specified form field.  
+  Example:
+  ```go
+  files := req.Files("attachments")
+  ```
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+- **`AllFiles() map[string][]*multipart.FileHeader`**  
+  Returns all uploaded files as a map.  
+  Example:
+  ```go
+  allFiles := req.AllFiles()
+  ```
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+#### Other
+
+- **`IsDone() bool`**  
+  Checks if the request has been completed or canceled.  
+  Example:
+  ```go
+  if req.IsDone() {
+      return
+  }
+  ```
+
+## Response API
+
+The `Response` object provides a fluent interface for constructing HTTP responses.
+
+### Methods
+
+#### Headers
+
+- **`Header(key, value string) *Response`**  
+  Adds a header to the response.  
+  Example:
+  ```go
+  res.Header("Content-Type", "application/json")
+  ```
+
+- **`Headers(headers map[string][]string) *Response`**  
+  Adds multiple headers to the response.  
+  Example:
+  ```go
+  res.Headers(map[string][]string{
+      "X-Custom-Header": {"Value1", "Value2"},
+  })
+  ```
+
+#### Status
+
+- **`Status(status int) *Response`**  
+  Sets the HTTP status code for the response.  
+  Example:
+  ```go
+  res.Status(201)
+  ```
+
+#### Writing Content
+
+- **`Write(data []byte)`**  
+  Writes binary data to the response.  
+  Example:
+  ```go
+  res.Write([]byte("Hello, world!"))
+  ```
+
+- **`WriteText(text string)`**  
+  Writes plain text to the response.  
+  Example:
+  ```go
+  res.WriteText("Hello, world!")
+  ```
+
+- **`WriteJSON(value any)`**  
+  Serializes the value to JSON and writes it to the response.  
+  Example:
+  ```go
+  res.WriteJSON(map[string]string{"message": "Success"})
+  ```
+
+#### Server-Sent Events (SSE)
+
+- **`FlushEvent(event *Event) error`**  
+  Sends a server-sent event and flushes it immediately.  
+  Example:
+  ```go
+  event := &webserver.Event{
+      Name: "update",
+      Data: map[string]string{"message": "Hello, SSE!"},
+  }
+  res.FlushEvent(event)
+  ```
+
+- **`FlushText(text string) error`**  
+  Writes text to the response and flushes it immediately.  
+  Example:
+  ```go
+  res.FlushText("Real-time update")
+  ```
+
+#### Rendering Files
+
+- **`Render(filePath string)`**  
+  Reads a file from the file system and writes it to the response.  
+  Example:
+  ```go
+  res.Render("templates/index.html")
+  ```
+
+#### Other
+
+- **`NoBody()`**  
+  Writes an empty response.  
+  Example:
+  ```go
+  res.Status(204).NoBody()
+  ```
+
+## Author
+
+Created and maintained by [ecromaneli-golang](https://github.com/ecromaneli-golang).
+
+## License
+
+This project is licensed under the MIT License. See the [`LICENSE`](LICENSE) file for details.
+
+Feel free to contribute to this project by submitting issues or pull requests!

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ecromaneli-golang/http/webserver"
 )
@@ -27,77 +28,79 @@ type WebServerTest struct {
 	RequestBody        []byte
 }
 
-func (this *WebServerTest) SetDefaults() {
-	if this.ServerPort == 0 {
+func (wst *WebServerTest) SetDefaults() {
+	if wst.ServerPort == 0 {
 		port++
-		this.ServerPort = port
+		wst.ServerPort = port
 	}
 
-	if this.ServerMethod == "" {
-		this.ServerMethod = http.MethodGet
+	if wst.ServerMethod == "" {
+		wst.ServerMethod = http.MethodGet
 	}
 
-	if this.ServerPattern == "" {
-		this.ServerPattern = "/"
+	if wst.ServerPattern == "" {
+		wst.ServerPattern = "/"
 	}
 
-	if this.ServerHandler == nil {
-		this.ServerHandler = emptyHandler
+	if wst.ServerHandler == nil {
+		wst.ServerHandler = emptyHandler
 	}
 
-	if this.RequestHost == "" {
-		this.RequestHost = "localhost"
+	if wst.RequestHost == "" {
+		wst.RequestHost = "localhost"
 	}
 
-	if this.RequestPort == 0 {
-		this.RequestPort = this.ServerPort
+	if wst.RequestPort == 0 {
+		wst.RequestPort = wst.ServerPort
 	}
 
-	if this.RequestMethod == "" {
-		this.RequestMethod = http.MethodGet
+	if wst.RequestMethod == "" {
+		wst.RequestMethod = http.MethodGet
 	}
 
-	if this.RequestPath == "" {
-		this.RequestPath = "/"
+	if wst.RequestPath == "" {
+		wst.RequestPath = "/"
 	}
 }
 
-func (this WebServerTest) Do() error {
-	_, _, err := this.DoAndGetDetails()
+func (wst WebServerTest) Do() error {
+	_, _, err := wst.DoAndGetDetails()
 	return err
 }
 
-func (this WebServerTest) DoAndGetDetails() (req *http.Request, res *http.Response, err error) {
+func (wst WebServerTest) DoAndGetDetails() (req *http.Request, res *http.Response, err error) {
 
 	// Given
-	this.SetDefaults()
+	wst.SetDefaults()
 
 	server := webserver.NewServer()
-	server.Handle(this.ServerMethod, this.ServerPattern, this.ServerHandler)
+	server.Handle(wst.ServerMethod, wst.ServerPattern, wst.ServerHandler)
 
 	// When
 	go func() {
-		panic(server.ListenAndServe(this.ServerHost + ":" + strconv.Itoa(this.ServerPort)))
+		panic(server.ListenAndServe(wst.ServerHost + ":" + strconv.Itoa(wst.ServerPort)))
 	}()
 
+	<-time.After(time.Millisecond)
+
 	var body io.Reader
-	if this.RequestBody != nil {
-		body = bytes.NewBuffer(this.RequestBody)
+	if wst.RequestBody != nil {
+		body = bytes.NewBuffer(wst.RequestBody)
 	}
 
 	// param := make(map[string][]string)
 	// param["testBody"] = []string{"valueBody"}
 
-	// res, err = http.PostForm("http://localhost:"+strconv.Itoa(this.ServerPort)+this.RequestPath, param)
+	// res, err = http.PostForm("http://localhost:"+strconv.Itoa(wst.ServerPort)+wst.RequestPath, param)
 
-	req, err = http.NewRequest(this.RequestMethod, "http://"+this.RequestHost+":"+strconv.Itoa(this.RequestPort)+this.RequestPath, body)
+	req, err = http.NewRequest(wst.RequestMethod, "http://"+wst.RequestHost+":"+strconv.Itoa(wst.RequestPort)+wst.RequestPath, body)
 
 	if err != nil {
 		return req, nil, err
 	}
 
-	if this.RequestContentType != "" {
-		req.Header.Add(webserver.ContentTypeHeader, this.RequestContentType)
+	if wst.RequestContentType != "" {
+		req.Header.Add(webserver.ContentTypeHeader, wst.RequestContentType)
 	}
 
 	res, err = http.DefaultClient.Do(req)

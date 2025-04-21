@@ -2,7 +2,7 @@ package webserver
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// Request represents an HTTP request with extended functionality.
 type Request struct {
 	Raw        *http.Request
 	response   *Response
@@ -25,19 +26,30 @@ func newRequest(req *http.Request) *Request {
 	return &Request{Raw: req}
 }
 
-func (this *Request) AllHeaders() http.Header {
-	return this.Raw.Header
+// AllHeaders returns all HTTP headers from the request.
+//
+// Returns the complete set of headers as an http.Header map.
+func (r *Request) AllHeaders() http.Header {
+	return r.Raw.Header
 }
 
-func (this *Request) Headers(name string) []string {
-	this.parseParams()
-	return this.AllHeaders()[name]
+// Headers returns all values for a specific HTTP header.
+//
+// The name parameter specifies which header to retrieve. Returns an empty slice
+// if the header doesn't exist.
+func (r *Request) Headers(name string) []string {
+	r.parseParams()
+	return r.AllHeaders()[name]
 }
 
-func (this *Request) Header(name string) string {
-	this.parseParams()
+// Header returns the first value for a specific HTTP header.
+//
+// The name parameter specifies which header to retrieve. Returns an empty string
+// if the header doesn't exist.
+func (r *Request) Header(name string) string {
+	r.parseParams()
 
-	header := this.Headers(name)
+	header := r.Headers(name)
 
 	if len(header) == 0 {
 		return ""
@@ -46,20 +58,31 @@ func (this *Request) Header(name string) string {
 	return header[0]
 }
 
-func (this *Request) AllParams() map[string][]string {
-	this.parseParams()
-	return this.params
+// AllParams returns all request parameters combined from URL, form, and path.
+//
+// Returns a map of parameter names to their values.
+func (r *Request) AllParams() map[string][]string {
+	r.parseParams()
+	return r.params
 }
 
-func (this *Request) Params(paramName string) []string {
-	this.parseParams()
-	return this.params[paramName]
+// Params returns all values for a specific parameter.
+//
+// The paramName specifies which parameter to retrieve. Returns an empty slice
+// if the parameter doesn't exist.
+func (r *Request) Params(paramName string) []string {
+	r.parseParams()
+	return r.params[paramName]
 }
 
-func (this *Request) Param(paramName string) string {
-	this.parseParams()
+// Param returns the first value for a specific parameter.
+//
+// The paramName specifies which parameter to retrieve. Returns an empty string
+// if the parameter doesn't exist.
+func (r *Request) Param(paramName string) string {
+	r.parseParams()
 
-	param := this.params[paramName]
+	param := r.params[paramName]
 
 	if len(param) == 0 {
 		return ""
@@ -68,20 +91,31 @@ func (this *Request) Param(paramName string) string {
 	return param[0]
 }
 
-func (this *Request) AllFiles() map[string][]*multipart.FileHeader {
-	this.parseParams()
-	return this.files
+// AllFiles returns all uploaded files from a multipart form request.
+//
+// Returns a map of field names to file headers.
+func (r *Request) AllFiles() map[string][]*multipart.FileHeader {
+	r.parseParams()
+	return r.files
 }
 
-func (this *Request) Files(paramName string) []*multipart.FileHeader {
-	this.parseParams()
-	return this.files[paramName]
+// Files returns all uploaded files for a specific form field.
+//
+// The paramName specifies which form field to retrieve files from. Returns an empty
+// slice if no files were uploaded under that name.
+func (r *Request) Files(paramName string) []*multipart.FileHeader {
+	r.parseParams()
+	return r.files[paramName]
 }
 
-func (this *Request) File(paramName string) *multipart.FileHeader {
-	this.parseParams()
+// File returns the first uploaded file for a specific form field.
+//
+// The paramName specifies which form field to retrieve a file from. Returns nil
+// if no files were uploaded under that name.
+func (r *Request) File(paramName string) *multipart.FileHeader {
+	r.parseParams()
 
-	files := this.files[paramName]
+	files := r.files[paramName]
 
 	if len(files) == 0 {
 		return nil
@@ -90,12 +124,20 @@ func (this *Request) File(paramName string) *multipart.FileHeader {
 	return files[0]
 }
 
-func (this *Request) UIntParam(paramName string) uint {
-	return uint(this.IntParam(paramName))
+// UIntParam returns a parameter value converted to an unsigned integer.
+//
+// The paramName specifies which parameter to retrieve and convert. Returns 0
+// if the parameter doesn't exist or cannot be converted.
+func (r *Request) UIntParam(paramName string) uint {
+	return uint(r.IntParam(paramName))
 }
 
-func (this *Request) IntParam(paramName string) int {
-	strParam := this.Param(paramName)
+// IntParam returns a parameter value converted to an integer.
+//
+// The paramName specifies which parameter to retrieve and convert. Returns 0
+// if the parameter doesn't exist. Panics if the value cannot be converted.
+func (r *Request) IntParam(paramName string) int {
+	strParam := r.Param(paramName)
 
 	if len(strParam) == 0 {
 		return 0
@@ -108,8 +150,12 @@ func (this *Request) IntParam(paramName string) int {
 	return param
 }
 
-func (this *Request) Float64Param(paramName string) float64 {
-	strParam := this.Param(paramName)
+// Float64Param returns a parameter value converted to a 64-bit floating point number.
+//
+// The paramName specifies which parameter to retrieve and convert. Returns 0
+// if the parameter doesn't exist. Panics if the value cannot be converted.
+func (r *Request) Float64Param(paramName string) float64 {
+	strParam := r.Param(paramName)
 
 	if len(strParam) == 0 {
 		return 0
@@ -121,8 +167,12 @@ func (this *Request) Float64Param(paramName string) float64 {
 	return param
 }
 
-func (this *Request) Float32Param(paramName string) float32 {
-	strParam := this.Param(paramName)
+// Float32Param returns a parameter value converted to a 32-bit floating point number.
+//
+// The paramName specifies which parameter to retrieve and convert. Returns 0
+// if the parameter doesn't exist. Panics if the value cannot be converted.
+func (r *Request) Float32Param(paramName string) float32 {
+	strParam := r.Param(paramName)
 
 	if len(strParam) == 0 {
 		return 0
@@ -134,114 +184,118 @@ func (this *Request) Float32Param(paramName string) float32 {
 	return float32(param)
 }
 
-func (this *Request) Body() []byte {
-	if !this.readBody {
-		this.readBody = true
+// Body returns the raw body of the HTTP request as a byte slice.
+//
+// The body is read only once and cached for subsequent calls.
+func (r *Request) Body() []byte {
+	if !r.readBody {
+		r.readBody = true
 
-		body, err := ioutil.ReadAll(this.Raw.Body)
+		body, err := io.ReadAll(r.Raw.Body)
 		panicIfNotNil(err)
 
-		this.recreateBodyReader(body)
-		this.body = body
+		r.recreateBodyReader(body)
+		r.body = body
 	}
 
-	return this.body
+	return r.body
 }
 
-func (this *Request) IsDone() bool {
-	if this.isDone {
+// IsDone checks if the request has been completed or canceled.
+//
+// Returns true if the request is done or the context has been canceled.
+func (r *Request) IsDone() bool {
+	if r.isDone {
 		return true
 	}
 
 	select {
-	case <-this.Raw.Context().Done():
-		this.isDone = true
+	case <-r.Raw.Context().Done():
+		r.isDone = true
 		return true
 	default:
 		return false
 	}
 }
 
-func (this *Request) parseParams() {
-	if this.readParams {
+func (r *Request) parseParams() {
+	if r.readParams {
 		return
 	}
 
-	this.readParams = true
+	r.readParams = true
 
-	this.initParams()
-	this.parseQueryParams()
-	this.parseBodyParams()
+	r.initParams()
+	r.parseQueryParams()
+	r.parseBodyParams()
 }
 
-func (this *Request) setPathParams(pathParams map[string]string) {
-	this.initParams()
+func (r *Request) setPathParams(pathParams map[string]string) {
+	r.initParams()
 
 	for name, value := range pathParams {
-		this.params[name] = append(this.params[name], value)
+		r.params[name] = append(r.params[name], value)
 	}
 }
 
-func (this *Request) initParams() {
-	if this.params == nil {
-		this.params = make(map[string][]string)
+func (r *Request) initParams() {
+	if r.params == nil {
+		r.params = make(map[string][]string)
 	}
 }
 
-func (this *Request) parseQueryParams() {
-	rawQuery := this.Raw.URL.RawQuery
+func (r *Request) parseQueryParams() {
+	rawQuery := r.Raw.URL.RawQuery
 
 	values, err := url.ParseQuery(rawQuery)
 	panicIfNotNilUsingStatusCode(http.StatusBadRequest, err)
-	this.copyMapToParams(values)
+	r.copyMapToParams(values)
 }
 
-func (this *Request) parseBodyParams() {
-	contentType := this.Header(ContentTypeHeader)
+func (r *Request) parseBodyParams() {
+	contentType := r.Header(ContentTypeHeader)
 
 	if strings.Contains(contentType, ContentTypeFormUrlEncoded) {
-		this.parseFormParams()
+		r.parseFormParams()
 	} else if strings.Contains(contentType, ContentTypeFormData) {
-		this.parseMultiPartFormParams()
+		r.parseMultiPartFormParams()
 	}
 }
 
-func (this *Request) recreateBodyReader(body []byte) {
+func (r *Request) recreateBodyReader(body []byte) {
 	if body == nil {
-		body = this.Body()
+		body = r.Body()
 	}
 
-	_ = this.Raw.Body.Close()
-	this.Raw.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	_ = r.Raw.Body.Close()
+	r.Raw.Body = io.NopCloser(bytes.NewBuffer(body))
 }
 
-func (this *Request) parseFormParams() {
-	body := this.Body()
-	defer this.recreateBodyReader(body)
+func (r *Request) parseFormParams() {
+	body := r.Body()
+	defer r.recreateBodyReader(body)
 
-	panicIfNotNil(this.Raw.ParseForm())
-	this.copyMapToParams(this.Raw.PostForm)
+	panicIfNotNil(r.Raw.ParseForm())
+	r.copyMapToParams(r.Raw.PostForm)
 }
 
-func (this *Request) parseMultiPartFormParams() {
-	body := this.Body()
-	defer this.recreateBodyReader(body)
+func (r *Request) parseMultiPartFormParams() {
+	body := r.Body()
+	defer r.recreateBodyReader(body)
 
-	panicIfNotNil(this.Raw.ParseMultipartForm(512 * 1024))
+	panicIfNotNil(r.Raw.ParseMultipartForm(512 * 1024))
 
-	this.copyMapToParams(this.Raw.MultipartForm.Value)
-	this.files = this.Raw.MultipartForm.File
+	r.copyMapToParams(r.Raw.MultipartForm.Value)
+	r.files = r.Raw.MultipartForm.File
 }
 
-func (this *Request) copyMapToParams(m map[string][]string) {
+func (r *Request) copyMapToParams(m map[string][]string) {
 	for key, values := range m {
-		if len(this.params[key]) == 0 {
-			this.params[key] = values
+		if len(r.params[key]) == 0 {
+			r.params[key] = values
 			continue
 		}
 
-		for _, value := range values {
-			this.params[key] = append(this.params[key], value)
-		}
+		r.params[key] = append(r.params[key], values...)
 	}
 }

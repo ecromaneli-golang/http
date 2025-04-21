@@ -8,8 +8,8 @@ type Event struct {
 	Data any    `json:"data"`
 }
 
-func (this *Event) ToBytes() []byte {
-	data, err := json.Marshal(this.Data)
+func (e *Event) ToBytes() []byte {
+	data, err := json.Marshal(e.Data)
 
 	if err != nil {
 		panic(err)
@@ -17,15 +17,15 @@ func (this *Event) ToBytes() []byte {
 
 	event := ""
 
-	if this.ID != "" {
-		event += "id: " + this.ID + "\n"
+	if e.ID != "" {
+		event += "id: " + e.ID + "\n"
 	}
 
-	event += "event: " + this.Name + "\ndata: "
+	event += "event: " + e.Name + "\ndata: "
 
 	return append([]byte(event), data...)
 }
 
-func (this *Event) ToString() string {
-	return string(this.ToBytes())
+func (e *Event) ToString() string {
+	return string(e.ToBytes())
 }

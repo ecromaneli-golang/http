@@ -18,13 +18,12 @@ type route struct {
 
 var slashSlice = []byte{'/'}
 var dotSlice = []byte{'.'}
-var emptySlice = make([]byte, 0)
 var emptyMatrix = make([][]byte, 0)
 
 const dynamicSymbols = "{*"
 
-func (this *routesByPattern) getRoute(method, pattern, hostPort, path string) (currentRoute *route, params map[string]string) {
-	routes := (*this)[pattern]
+func (rbp *routesByPattern) getRoute(method, pattern, hostPort, path string) (currentRoute *route, params map[string]string, err *serverError) {
+	routes := (*rbp)[pattern]
 	errorStatus := http.StatusNotFound
 
 	for _, route := range routes {
@@ -39,18 +38,15 @@ func (this *routesByPattern) getRoute(method, pattern, hostPort, path string) (c
 			continue
 		}
 
-		return &route, params
+		return &route, params, nil
 	}
 
-	NewHTTPError(errorStatus, nil).Panic()
-
-	// Should not reach here
-	return nil, nil
+	return nil, nil, NewHTTPError(errorStatus, http.StatusText(errorStatus)+" - "+method+" "+hostPort+path)
 }
 
-func (this *routesByPattern) Add(methods []string, pattern string, handler Handler) *route {
+func (rbp *routesByPattern) Add(methods []string, pattern string, handler Handler) *route {
 	route := newRoute(methods, pattern, handler)
-	(*this)[route.staticPattern] = append((*this)[route.staticPattern], *route)
+	(*rbp)[route.staticPattern] = append((*rbp)[route.staticPattern], *route)
 	return route
 }
 
@@ -64,21 +60,21 @@ func newRoute(methods []string, pattern string, handler Handler) *route {
 	return route
 }
 
-func (this *route) extractAndSetPattern(pattern []byte) {
+func (rbp *route) extractAndSetPattern(pattern []byte) {
 
 	// === DYNAMIC HOST === //
 
 	indexOf := bytes.IndexByte(pattern, '/')
 
 	if indexOf == -1 {
-		this.dynamicHost = bytes.Split(pattern, dotSlice)
-		reversePattern(this.dynamicHost)
+		rbp.dynamicHost = bytes.Split(pattern, dotSlice)
+		reversePattern(rbp.dynamicHost)
 		return
 	}
 
 	if indexOf > 0 {
-		this.dynamicHost = bytes.Split(pattern[:indexOf], dotSlice)
-		reversePattern(this.dynamicHost)
+		rbp.dynamicHost = bytes.Split(pattern[:indexOf], dotSlice)
+		reversePattern(rbp.dynamicHost)
 		pattern = pattern[indexOf:]
 	}
 
@@ -87,7 +83,7 @@ func (this *route) extractAndSetPattern(pattern []byte) {
 	indexOf = bytes.IndexAny(pattern, dynamicSymbols)
 
 	if indexOf == -1 {
-		this.staticPattern = string(trimSlashes(pattern))
+		rbp.staticPattern = string(trimSlashes(pattern))
 		return
 	}
 	dynamicPattern := pattern[indexOf:]
@@ -95,31 +91,31 @@ func (this *route) extractAndSetPattern(pattern []byte) {
 	staticPattern := pattern[:indexOf]
 	staticPattern = staticPattern[:bytes.LastIndexByte(staticPattern, '/')+1]
 
-	this.staticPattern = string(trimSlashes(staticPattern))
-	this.dynamicPattern = bytes.Split(trimSlashes(dynamicPattern), slashSlice)
+	rbp.staticPattern = string(trimSlashes(staticPattern))
+	rbp.dynamicPattern = bytes.Split(trimSlashes(dynamicPattern), slashSlice)
 }
 
-func (this *route) matchURLAndGetParam(hostPort, path string) (params map[string]string, status bool) {
+func (rbp *route) matchURLAndGetParam(hostPort, path string) (params map[string]string, status bool) {
 	params = make(map[string]string)
 
 	// Validate dynamic host
-	if len(this.dynamicHost) > 0 {
+	if len(rbp.dynamicHost) > 0 {
 		host, _ := splitHostPort(hostPort)
 		hostTokens := bytes.Split([]byte(host), dotSlice)
 		reversePattern(hostTokens)
 
-		if !matchTokens(this.dynamicHost, hostTokens, params) {
+		if !matchTokens(rbp.dynamicHost, hostTokens, params) {
 			return nil, false
 		}
 	}
 
 	// The static part of the path was already validated by 'http' library
-	if len(path) == len(this.staticPattern) && len(this.dynamicPattern) == 0 {
+	if len(path) == len(rbp.staticPattern) && len(rbp.dynamicPattern) == 0 {
 		return params, true
 	}
 
 	// Split dynamic part of the path by slashes
-	pathBytes := trimSlashes(trimSlashes([]byte(path))[len(this.staticPattern):])
+	pathBytes := trimSlashes(trimSlashes([]byte(path))[len(rbp.staticPattern):])
 
 	var dynamicPath [][]byte
 	if len(pathBytes) > 0 {
@@ -129,7 +125,7 @@ func (this *route) matchURLAndGetParam(hostPort, path string) (params map[string
 	}
 
 	// Validate dynamic path
-	return params, matchTokens(this.dynamicPattern, dynamicPath, params)
+	return params, matchTokens(rbp.dynamicPattern, dynamicPath, params)
 }
 
 func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) bool {
@@ -164,7 +160,7 @@ func matchTokens(tokensPattern, tokens [][]byte, params map[string]string) bool 
 
 		// default: compare static names
 		default:
-			if bytes.Compare(key, tokenValue) != 0 {
+			if !bytes.Equal(key, tokenValue) {
 				return false
 			}
 		}
@@ -200,29 +196,16 @@ func isOptional(pattern []byte) bool {
 }
 
 func trimSlashes(data []byte) []byte {
-	begin, end := 0, len(data)
-
-	if end == 0 {
-		return data
-	}
-
-	if data[begin] == '/' {
-		begin++
-	}
-
-	if end > 1 && data[end-1] == '/' {
-		end--
-	}
-
-	return data[begin:end]
+	data = bytes.TrimPrefix(data, slashSlice)
+	return bytes.TrimSuffix(data, slashSlice)
 }
 
-func (this *route) acceptsMethod(method string) bool {
-	if this.methods == nil {
+func (rbp *route) acceptsMethod(method string) bool {
+	if rbp.methods == nil {
 		return true
 	}
 
-	for _, item := range this.methods {
+	for _, item := range rbp.methods {
 		if item == method {
 			return true
 		}
