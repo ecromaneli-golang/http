@@ -3,6 +3,7 @@ package webserver
 import (
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/ecromaneli-golang/console/logger"
 )
@@ -133,8 +134,8 @@ func (s *Server) Handle(method string, pattern string, handler Handler) *Server 
 //
 // Returns the server instance for method chaining.
 func (s *Server) MultiHandle(methods []string, pattern string, handler Handler) *Server {
-	if s.logger.IsEnabled(logger.LevelTrace) {
-		s.logger.Trace("MultiHandle(methods=\"", methods, "\", pattern=\""+pattern+"\", handler)")
+	if s.logger.IsTraceEnabled() {
+		s.logger.Trace("MultiHandle(methods=\"[" + strings.Join(methods, ", ") + "]\", pattern=\"" + pattern + "\", handler)")
 	}
 
 	pattern, isNewStaticPattern := s.addRoute(methods, pattern, handler)
@@ -145,8 +146,8 @@ func (s *Server) MultiHandle(methods []string, pattern string, handler Handler) 
 
 	s.RegisterRouteHandler(pattern)
 
-	if s.logger.IsEnabled(logger.LevelDebug) {
-		s.logger.Debug("Route added: \"", methods, " /", pattern, "\"")
+	if s.logger.IsDebugEnabled() {
+		s.logger.Debug("Route added: \"[" + strings.Join(methods, ", ") + "] /" + pattern + "\"")
 	}
 
 	return s
@@ -171,8 +172,8 @@ func (s *Server) RegisterRouteHandler(pattern string) *Server {
 
 func (s *Server) createHandlerFunc(pattern string) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
-		if s.logger.IsEnabled(logger.LevelTrace) {
-			s.logger.Trace(getRemoteAddr(req), " - ", req.Method, " ", req.Host+req.URL.Path)
+		if s.logger.IsTraceEnabled() {
+			s.logger.Trace(getRemoteAddr(req), "-", req.Method, req.Host+req.URL.Path)
 		}
 
 		request := newRequest(req)
@@ -189,8 +190,8 @@ func (s *Server) createHandlerFunc(pattern string) http.HandlerFunc {
 		}
 
 		response.Status(err.statusCode).NoBody()
-		if s.logger.IsEnabled(logger.LevelDebug) {
-			s.logger.Debug(getRemoteAddr(req), " - ", err.Error())
+		if s.logger.IsDebugEnabled() {
+			s.logger.Debug(getRemoteAddr(req), "-", err.Error())
 		}
 	}
 }
@@ -280,19 +281,9 @@ func (s *Server) addRoute(methods []string, pattern string, handler Handler) (ro
 	return route.staticPattern, len(s.routes[route.staticPattern]) == 1
 }
 
-// SetLogLevel sets the logging level for the server.
-//
-// The level can be one of the following:
-//   - ALL
-//   - TRACE
-//   - DEBUG
-//   - INFO
-//   - WARN
-//   - ERROR
-//   - FATAL
-//   - OFF
-func (s *Server) SetLogLevel(level string) {
-	s.logger.SetLogLevelStr(level)
+// Logger gets the logger for the server instance.
+func (s *Server) Logger() *logger.Logger {
+	return s.logger
 }
 
 func (s *Server) catchAllServerErrors(req *Request, res *Response) {
