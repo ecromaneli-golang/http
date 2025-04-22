@@ -84,6 +84,38 @@ func ServeTLS(l net.Listener, handler Handler, certFile string, keyFile string) 
 	return NewServer().All(WildcardPattern, handler).ServeTLS(l, certFile, keyFile)
 }
 
+// ListenAndServeAsync creates a new server with the given handler for all routes and
+// listens on the specified address without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func ListenAndServeAsync(addr string, handler Handler) <-chan error {
+	return NewServer().All(WildcardPattern, handler).ListenAndServeAsync(addr)
+}
+
+// ListenAndServeTLSAsync creates a new server with the given handler for all routes and
+// listens on the specified address using TLS without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func ListenAndServeTLSAsync(addr, certFile, keyFile string, handler Handler) <-chan error {
+	return NewServer().All(WildcardPattern, handler).ListenAndServeTLSAsync(addr, certFile, keyFile)
+}
+
+// ServeAsync creates a new server with the given handler for all routes and
+// serves requests on the provided listener without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func ServeAsync(l net.Listener, handler Handler) <-chan error {
+	return NewServer().All(WildcardPattern, handler).ServeAsync(l)
+}
+
+// ServeTLSAsync creates a new server with the given handler for all routes and
+// serves HTTPS requests on the provided listener without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func ServeTLSAsync(l net.Listener, handler Handler, certFile, keyFile string) <-chan error {
+	return NewServer().All(WildcardPattern, handler).ServeTLSAsync(l, certFile, keyFile)
+}
+
 // ListenAndServe starts the server on the specified address.
 //
 // It blocks until the server is stopped or an error occurs.
@@ -113,6 +145,44 @@ func (s *Server) Serve(l net.Listener) error {
 // It blocks until the listener is closed.
 func (s *Server) ServeTLS(l net.Listener, certFile string, keyFile string) error {
 	return http.ServeTLS(l, s.mux, certFile, keyFile)
+}
+
+// ListenAndServeAsync starts the server on the specified address without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func (s *Server) ListenAndServeAsync(addr string) <-chan error {
+	return serveAsync(func() error {
+		return s.ListenAndServe(addr)
+	})
+}
+
+// ListenAndServeTLSAsync starts the server with TLS enabled on the specified address
+// without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func (s *Server) ListenAndServeTLSAsync(addr, certFile, keyFile string) <-chan error {
+	return serveAsync(func() error {
+		return s.ListenAndServeTLS(addr, certFile, keyFile)
+	})
+}
+
+// ServeAsync accepts incoming connections on the provided listener without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func (s *Server) ServeAsync(l net.Listener) <-chan error {
+	return serveAsync(func() error {
+		return s.Serve(l)
+	})
+}
+
+// ServeTLSAsync accepts incoming connections on the provided listener using TLS
+// without blocking.
+//
+// Returns a channel that will receive any error that occurs during server operation.
+func (s *Server) ServeTLSAsync(l net.Listener, certFile, keyFile string) <-chan error {
+	return serveAsync(func() error {
+		return s.ServeTLS(l, certFile, keyFile)
+	})
 }
 
 // HandleAll registers a handler for all HTTP methods on the specified pattern.
@@ -302,6 +372,16 @@ func (s *Server) catchAllServerErrors(req *Request, res *Response) {
 
 		s.logger.Error(customErr.Error())
 	}
+}
+
+func serveAsync(serve func() error) <-chan error {
+	errChan := make(chan error, 1)
+	go func() {
+		defer close(errChan)
+		err := serve()
+		errChan <- err
+	}()
+	return errChan
 }
 
 // getRemoteAddr extracts the client IP address from the request.

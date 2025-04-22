@@ -233,8 +233,11 @@ func panicIfNotNil(err error) {
 // 	fmt.Println("Starting web server on port 8080...")
 // 	server := webserver.NewServer()
 // 	server.Logger().SetLogLevelStr("ALL")
-// 	server.Get("127.0.0.1/a/b/c/{d}/*/{e?}", func(req *webserver.Request, res *webserver.Response) {
-// 		res.WriteText("Accessible only from 127.0.0.1")
+// 	server.Get("localhost/a/b/c/{d}/e/{e?}", func(req *webserver.Request, res *webserver.Response) {
+// 		res.WriteText("A")
+// 	})
+// 	server.Get("localhost/a/b/c/{d}/e/{f}", func(req *webserver.Request, res *webserver.Response) {
+// 		res.WriteText("B")
 // 	})
 // 	server.Get("/status/{status}", func(req *webserver.Request, res *webserver.Response) {
 // 		res.Status(req.IntParam("status")).NoBody()
