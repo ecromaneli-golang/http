@@ -47,10 +47,27 @@ func main() {
         res.WriteText("Hello, " + name + "!")
     })
 
-    // Start the server
+    // Start the server and wait
     server.ListenAndServe(":8080")
 }
 ```
+
+#### Async Usage
+
+```go
+/* [...] */
+
+    // Start the server
+    serverChan := server.ListenAndServe(":8080")
+
+    /* Anything */
+
+    // Wait server stop
+    err, ok <-serverChan
+
+/* [...] */
+```
+
 ## Examples
 
 ### Example 1: Basic Routing
