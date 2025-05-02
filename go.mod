@@ -3,7 +3,7 @@ module github.com/ecromaneli-golang/http
 go 1.24
 
 require (
-	github.com/ecromaneli-golang/console v1.2.0
+	github.com/ecromaneli-golang/console v1.3.0
 	github.com/stretchr/testify v1.10.0
 )
 
